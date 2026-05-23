@@ -59,9 +59,10 @@ spec:
               value: "8080"
             - name: NODE_ENV
               value: "production"
-            # Backend URL for server-side proxy (if needed)
-            - name: BACKEND_URL
-              value: "http://backend-service:3001"
+            - name: BACKEND_HOST
+              value: "backend-service"
+            - name: BACKEND_PORT
+              value: "3001"
           resources:
             requests:
               cpu: "50m"
@@ -104,6 +105,7 @@ metadata:
     app: frontend
     app.kubernetes.io/component: frontend
 spec:
+  type: LoadBalancer 
   selector:
     app: frontend
   ports:
