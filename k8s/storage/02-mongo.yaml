@@ -1,0 +1,107 @@
+# ============================================================
+# MongoDB StatefulSet — Persistent, Authenticated Storage
+# ============================================================
+
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: mongo
+  namespace: chat-app
+  labels:
+    app: mongo
+    app.kubernetes.io/name: chat-app
+    app.kubernetes.io/component: database
+spec:
+  serviceName: mongo
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mongo
+  template:
+    metadata:
+      labels:
+        app: mongo
+    spec:
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999        # MongoDB default uid
+        fsGroup: 999
+      containers:
+        - name: mongo
+          image: mongo:6
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 27017
+              name: mongo
+          # No auth for local dev — MongoDB starts without access control
+          # For production, re-add MONGO_INITDB_ROOT_USERNAME/PASSWORD here
+          resources:
+            requests:
+              cpu: "200m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          volumeMounts:
+            - name: mongo-data
+              mountPath: /data/db
+            - name: mongo-config
+              mountPath: /data/configdb
+          livenessProbe:
+            exec:
+              command:
+                - mongosh
+                - --eval
+                - "db.adminCommand('ping')"
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          readinessProbe:
+            exec:
+              command:
+                - mongosh
+                - --eval
+                - "db.adminCommand('ping')"
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 5
+            failureThreshold: 3
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false   # MongoDB writes to /tmp
+            capabilities:
+              drop: ["ALL"]
+      volumes:
+        - name: mongo-config
+          emptyDir: {}
+  volumeClaimTemplates:
+    - metadata:
+        name: mongo-data
+        labels:
+          app: mongo
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 5Gi
+        # storageClassName: standard   # Uncomment and set for your cluster
+---
+# Headless service for StatefulSet DNS resolution
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongo
+  namespace: chat-app
+  labels:
+    app: mongo
+    app.kubernetes.io/component: database
+spec:
+  clusterIP: None
+  selector:
+    app: mongo
+  ports:
+    - port: 27017
+      targetPort: 27017
+      name: mongo

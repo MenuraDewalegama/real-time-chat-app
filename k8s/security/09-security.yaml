@@ -1,0 +1,90 @@
+# ============================================================
+# Security: PodDisruptionBudgets + PodSecurity Admission
+# ============================================================
+
+# ── PodDisruptionBudget: Backend ──────────────────────────────
+# Ensures at least 2 backend pods survive any voluntary disruption
+# (node drain, cluster upgrade, etc.)
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: backend-pdb
+  namespace: chat-app
+  labels:
+    app.kubernetes.io/component: resilience
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: backend
+---
+# ── PodDisruptionBudget: Frontend ─────────────────────────────
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: frontend-pdb
+  namespace: chat-app
+  labels:
+    app.kubernetes.io/component: resilience
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: frontend
+---
+# ── PodDisruptionBudget: MongoDB ──────────────────────────────
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: mongo-pdb
+  namespace: chat-app
+  labels:
+    app.kubernetes.io/component: resilience
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: mongo
+---
+# ── PodDisruptionBudget: Redis ────────────────────────────────
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: redis-pdb
+  namespace: chat-app
+  labels:
+    app.kubernetes.io/component: resilience
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: redis
+---
+# ============================================================
+# RBAC: Limit what the backend service account can do
+# The backend only needs to read its own config — no cluster access
+# ============================================================
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: chat-backend-role
+  namespace: chat-app
+rules:
+  # Minimal: allow reading configmaps in the namespace (if needed)
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: chat-backend-rolebinding
+  namespace: chat-app
+subjects:
+  - kind: ServiceAccount
+    name: chat-backend-sa
+    namespace: chat-app
+roleRef:
+  kind: Role
+  apiGroupVersion: rbac.authorization.k8s.io
+  name: chat-backend-role

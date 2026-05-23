@@ -1,0 +1,185 @@
+<!-- <h2>Login</h2>
+
+<input id="u" placeholder="username" />
+<input id="p" type="password" placeholder="password" />
+
+<button onclick="login()">Login</button>
+<button onclick="register()">Register</button>
+
+<script>
+    async function register() {
+        await fetch("http://localhost:3001/auth/register", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                username: u.value,
+                password: p.value
+            })
+        });
+
+        alert("registered");
+    }
+
+    async function login() {
+        const res = await fetch("http://localhost:3001/auth/login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                username: u.value,
+                password: p.value
+            })
+        });
+
+        const data = await res.json();
+        localStorage.setItem("token", data.token);
+
+        window.location = "/chat.html";
+    }
+</script> -->
+
+
+<!-- <!DOCTYPE html>
+<html>
+<head>
+
+  <script>
+    window.API_URL = "http://backend-service:3001";
+    window.WS_URL  = "ws://backend-service:3001/ws";
+  </script>
+
+</head>
+
+<body>
+
+<h2>Login</h2>
+
+<input id="u" placeholder="username" />
+<input id="p" type="password" placeholder="password" />
+
+<button onclick="login()">Login</button>
+<button onclick="register()">Register</button>
+
+<script>
+  // 🌐 KUBERNETES-READY API BASE URL
+  const API_URL =
+    window.API_URL ||
+    `${window.location.protocol}//${window.location.hostname}:3001`;
+
+  async function register() {
+    await fetch(`${API_URL}/auth/register`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        username: u.value,
+        password: p.value
+      })
+    });
+
+    alert("registered");
+  }
+
+  async function login() {
+    const res = await fetch(`${API_URL}/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        username: u.value,
+        password: p.value
+      })
+    });
+
+    const data = await res.json();
+
+    localStorage.setItem("token", data.token);
+
+    window.location = "/chat.html";
+  }
+</script>
+
+
+</body>
+</html> -->
+
+
+
+
+
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Login</title>
+</head>
+<body>
+
+<h2>Login</h2>
+
+<input id="u" placeholder="Username" />
+<input id="p" type="password" placeholder="Password" />
+
+<button onclick="login()">Login</button>
+<button onclick="register()">Register</button>
+
+<div id="msg" style="margin-top:10px; color:red;"></div>
+
+<script>
+  // ✅ FIX 1: Removed hardcoded "http://backend-service:3001" — browsers can't
+  // reach Kubernetes-internal hostnames. The API calls now go through the
+  // Ingress on the same hostname the user is already on.
+  const API_URL = `${window.location.protocol}//${window.location.host}`;
+
+  async function register() {
+    const status = document.getElementById("msg");
+    try {
+      const res = await fetch(`${API_URL}/auth/register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username: document.getElementById("u").value,
+          password: document.getElementById("p").value
+        })
+      });
+
+      if (res.ok) {
+        status.style.color = "green";
+        status.textContent = "Registered! You can now log in.";
+      } else {
+        const text = await res.text();
+        status.style.color = "red";
+        status.textContent = text;
+      }
+    } catch (e) {
+      status.textContent = "Could not reach server.";
+    }
+  }
+
+  async function login() {
+    const status = document.getElementById("msg");
+    try {
+      const res = await fetch(`${API_URL}/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username: document.getElementById("u").value,
+          password: document.getElementById("p").value
+        })
+      });
+
+      if (!res.ok) {
+        const text = await res.text();
+        status.style.color = "red";
+        status.textContent = text;
+        return;
+      }
+
+      const data = await res.json();
+      localStorage.setItem("token", data.token);
+      window.location.href = "/chat.html";
+
+    } catch (e) {
+      status.textContent = "Could not reach server.";
+    }
+  }
+</script>
+
+</body>
+</html>

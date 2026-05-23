@@ -1,0 +1,149 @@
+# ============================================================
+# Backend Deployment — Node.js / WebSocket Chat Server
+# Rolling update strategy, secrets injection, HPA-ready
+# ============================================================
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: chat-app
+  labels:
+    app: backend
+    app.kubernetes.io/name: chat-app
+    app.kubernetes.io/component: backend
+  annotations:
+    deployment.kubernetes.io/revision: "1"
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: backend
+  # ── Rolling Update ──────────────────────────────────────────
+  # Zero-downtime deploys: bring new pods up before removing old
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1         # At most 1 extra pod during update
+      maxUnavailable: 0   # Never reduce below desired count
+  template:
+    metadata:
+      labels:
+        app: backend
+      annotations:
+        # Forces pod restart when secrets change (via checksum)
+        # Update this hash when rotating secrets in CI/CD
+        secret-hash: "v1"
+    spec:
+      serviceAccountName: chat-backend-sa
+      terminationGracePeriodSeconds: 30
+      # ── Pod-level security ───────────────────────────────────
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      # ── Anti-affinity: spread across nodes ──────────────────
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app
+                      operator: In
+                      values: [backend]
+                topologyKey: kubernetes.io/hostname
+      containers:
+        - name: backend
+          image: real-time-chat-app-backend:latest
+          imagePullPolicy: IfNotPresent   # Change to Always for registry images
+          ports:
+            - containerPort: 3001
+              name: http-ws
+              protocol: TCP
+          # ── Environment from Secrets ──────────────────────────
+          env:
+            - name: PORT
+              value: "3001"
+            - name: NODE_ENV
+              value: "production"
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: chat-app-secrets
+                  key: JWT_SECRET
+            - name: MONGO_URL
+              valueFrom:
+                secretKeyRef:
+                  name: chat-app-secrets
+                  key: MONGO_URL
+            - name: REDIS_HOST
+              value: "redis"
+            - name: REDIS_PORT
+              value: "6379"
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: chat-app-secrets
+                  key: REDIS_PASSWORD
+          # ── Resource Limits (required for HPA) ───────────────
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+          # ── Health Probes ─────────────────────────────────────
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3001
+            initialDelaySeconds: 20
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3001
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+          # ── Graceful shutdown hook ────────────────────────────
+          lifecycle:
+            preStop:
+              exec:
+                command: ["/bin/sh", "-c", "sleep 5"]
+          # ── Container security ────────────────────────────────
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false   # Express/Node writes temp files
+            capabilities:
+              drop: ["ALL"]
+---
+# ── Service: ClusterIP for internal routing ──────────────────
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend-service
+  namespace: chat-app
+  labels:
+    app: backend
+    app.kubernetes.io/component: backend
+spec:
+  selector:
+    app: backend
+  ports:
+    - port: 3001
+      targetPort: 3001
+      name: http-ws
+  # SessionAffinity for sticky WebSocket connections to the same pod
+  # (Alternative: use Redis pub/sub for cross-pod WS messaging — already wired)
+  sessionAffinity: ClientIP
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 3600
