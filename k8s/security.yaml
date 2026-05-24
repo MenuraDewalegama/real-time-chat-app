@@ -1,0 +1,56 @@
+# Ensures at least 2 backend pods survive any voluntary disruption
+# Backend
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: backend-pdb
+  namespace: chat-app
+  labels:
+    app.kubernetes.io/component: resilience
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: backend
+---
+# Frontend 
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: frontend-pdb
+  namespace: chat-app
+  labels:
+    app.kubernetes.io/component: resilience
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: frontend
+---
+# MongoDB 
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: mongo-pdb
+  namespace: chat-app
+  labels:
+    app.kubernetes.io/component: resilience
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: mongo
+---
+# Redis 
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: redis-pdb
+  namespace: chat-app
+  labels:
+    app.kubernetes.io/component: resilience
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: redis

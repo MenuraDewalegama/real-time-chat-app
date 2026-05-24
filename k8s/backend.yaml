@@ -1,8 +1,3 @@
-# ============================================================
-# Backend Deployment — Node.js / WebSocket Chat Server
-# Rolling update strategy, secrets injection, HPA-ready
-# ============================================================
-
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -19,31 +14,25 @@ spec:
   selector:
     matchLabels:
       app: backend
-  # ── Rolling Update ──────────────────────────────────────────
-  # Zero-downtime deploys: bring new pods up before removing old
   strategy:
     type: RollingUpdate
     rollingUpdate:
-      maxSurge: 1         # At most 1 extra pod during update
-      maxUnavailable: 0   # Never reduce below desired count
+      maxSurge: 1        
+      maxUnavailable: 0   
   template:
     metadata:
       labels:
         app: backend
       annotations:
-        # Forces pod restart when secrets change (via checksum)
-        # Update this hash when rotating secrets in CI/CD
         secret-hash: "v1"
     spec:
       serviceAccountName: chat-backend-sa
       terminationGracePeriodSeconds: 30
-      # ── Pod-level security ───────────────────────────────────
       securityContext:
         runAsNonRoot: true
         runAsUser: 1000
         runAsGroup: 1000
         fsGroup: 1000
-      # ── Anti-affinity: spread across nodes ──────────────────
       affinity:
         podAntiAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:
@@ -58,12 +47,11 @@ spec:
       containers:
         - name: backend
           image: real-time-chat-app-backend:latest
-          imagePullPolicy: IfNotPresent   # Change to Always for registry images
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 3001
               name: http-ws
               protocol: TCP
-          # ── Environment from Secrets ──────────────────────────
           env:
             - name: PORT
               value: "3001"
@@ -88,7 +76,6 @@ spec:
                 secretKeyRef:
                   name: chat-app-secrets
                   key: REDIS_PASSWORD
-          # ── Resource Limits (required for HPA) ───────────────
           resources:
             requests:
               cpu: "100m"
@@ -96,7 +83,6 @@ spec:
             limits:
               cpu: "500m"
               memory: "256Mi"
-          # ── Health Probes ─────────────────────────────────────
           livenessProbe:
             httpGet:
               path: /health
@@ -113,15 +99,13 @@ spec:
             periodSeconds: 5
             timeoutSeconds: 3
             failureThreshold: 3
-          # ── Graceful shutdown hook ────────────────────────────
           lifecycle:
             preStop:
               exec:
                 command: ["/bin/sh", "-c", "sleep 5"]
-          # ── Container security ────────────────────────────────
           securityContext:
             allowPrivilegeEscalation: false
-            readOnlyRootFilesystem: false   # Express/Node writes temp files
+            readOnlyRootFilesystem: false
             capabilities:
               drop: ["ALL"]
 ---
